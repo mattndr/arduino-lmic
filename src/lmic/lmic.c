@@ -1843,7 +1843,6 @@ static void setupRx2DnData (xref2osjob_t osjob) {
 #if defined(CLASS_C)
 static void setupRx2ContDnData (xref2osjob_t osjob) {
     LMIC_API_PARAMETER(osjob);
-    printf("setupRx2Cont\n");
     LMIC.osjob.func = FUNC_ADDR(processRx2DnData);
     setupRx2Cont();
 }
