@@ -371,7 +371,7 @@ void LMICeu868_setRx1Params(void) {
 
 void
 LMICeu868_initJoinLoop(void) {
-        LMICeulike_initJoinLoop(NUM_DEFAULT_CHANNELS, /* adr dBm */ EU868_TX_EIRP_MAX_DBM);
+    LMICeulike_initJoinLoop(NUM_DEFAULT_CHANNELS, /* adr dBm */ LMIC.adrTxPow ? LMIC.adrTxPow : EU868_TX_EIRP_MAX_DBM);
 }
 
 //

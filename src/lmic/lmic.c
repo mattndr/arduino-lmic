@@ -467,6 +467,11 @@ static void reportEventAndUpdate(ev_t ev) {
     engineUpdate();
 }
 
+#if defined(CLASS_C)
+// Fwd decl.
+static void setupRx2ContDnData(xref2osjob_t osjob);
+#endif
+
 static void reportEventNoUpdate (ev_t ev) {
     uint32_t const evSet = UINT32_C(1) << ev;
     EV(devCond, INFO, (e_.reason = EV::devCond_t::LMIC_EV,
@@ -541,6 +546,12 @@ static void reportEventNoUpdate (ev_t ev) {
     // tell the client about events in general
     if (LMIC.client.eventCb != NULL)
         LMIC.client.eventCb(LMIC.client.eventUserData, ev);
+
+#if defined(CLASS_C)
+    if(ev == EV_TXCOMPLETE || ev == EV_JOINED)
+        if((LMIC.opmode & (OP_POLL | OP_TXDATA)) == 0)
+            os_setCallback(&LMIC.osjob, FUNC_ADDR(setupRx2ContDnData));
+#endif
 #endif // LMIC_ENABLE_user_events
 }
 
@@ -1445,6 +1456,25 @@ static void setupRx2 (void) {
     radioRx();
 }
 
+#if defined(CLASS_C)
+// start reception and log (continuous mode).
+static void radioRx2Cont (void) {
+    reportEventNoUpdate(EV_RXSTART);
+    os_radio(RADIO_RXON);
+}
+#endif
+
+#if defined(CLASS_C)
+// start RX in window 2 (continuous mode).
+static void setupRx2Cont (void) {
+    initTxrxFlags(__func__, TXRX_DNW2);
+    LMIC.rps = dndr2rps(LMIC.dn2Dr);
+    LMIC.freq = LMIC.dn2Freq;
+    LMIC.dataLen = 0;
+    radioRx2Cont();
+}
+#endif
+
 //! \brief Adjust the delay (in ticks) of the target window-open time from nominal.
 //! \param hsym the duration of one-half symbol in osticks.
 //! \param rxsyms_in the nominal window length -- minimum length of time to delay.
@@ -1810,12 +1840,24 @@ static void setupRx2DnData (xref2osjob_t osjob) {
     setupRx2();
 }
 
+#if defined(CLASS_C)
+static void setupRx2ContDnData (xref2osjob_t osjob) {
+    LMIC_API_PARAMETER(osjob);
+    printf("setupRx2Cont\n");
+    LMIC.osjob.func = FUNC_ADDR(processRx2DnData);
+    setupRx2Cont();
+}
+#endif
 
 static void processRx1DnData (xref2osjob_t osjob) {
     LMIC_API_PARAMETER(osjob);
 
     if( LMIC.dataLen == 0 || !processDnData() )
+    #if defined(CLASS_C)
+        schedRx12(0, FUNC_ADDR(setupRx2ContDnData), LMIC.dn2Dr);
+#else
         schedRx12(sec2osticks(LMIC.rxDelay +(int)DELAY_EXTDNW2), FUNC_ADDR(setupRx2DnData), LMIC.dn2Dr);
+#endif
 }
 
 
@@ -2231,9 +2273,10 @@ static bit_t processDnData_txcomplete(void);
 static bit_t processDnData (void) {
     // if no TXRXPEND, we shouldn't be here and can do nothign.
     // formerly we asserted.
+#if !defined(CLASS_C)
     if ((LMIC.opmode & OP_TXRXPEND) == 0)
         return 1;
-
+#endif
     if( LMIC.dataLen == 0 ) {
         // if this is an RX1 window, shouldn't we return 0 to schedule
         // RX2?  in fact, the rx1 caller ignores what we return, and
